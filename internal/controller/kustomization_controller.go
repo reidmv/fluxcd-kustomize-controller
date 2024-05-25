@@ -27,6 +27,7 @@ import (
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/fluxcd/pkg/ssa/jsondiff"
 	"github.com/fluxcd/pkg/ssa/normalize"
 	ssautil "github.com/fluxcd/pkg/ssa/utils"
 	corev1 "k8s.io/api/core/v1"
@@ -681,6 +682,26 @@ func (r *KustomizationReconciler) apply(ctx context.Context,
 	applyOpts.ForceSelector = map[string]string{
 		fmt.Sprintf("%s/force", kustomizev1.GroupVersion.Group): kustomizev1.EnabledValue,
 	}
+	// Add diffing ignore rules to the apply configuration.
+	var diffIgnoreRules jsondiff.IgnoreRules
+	for _, rule := range obj.GetDriftDetection().Ignore {
+		r := jsondiff.IgnoreRule{
+			Paths: rule.Paths,
+		}
+		if rule.Target != nil {
+			r.Selector = &jsondiff.Selector{
+				Group:              rule.Target.Group,
+				Version:            rule.Target.Version,
+				Kind:               rule.Target.Kind,
+				Name:               rule.Target.Name,
+				Namespace:          rule.Target.Namespace,
+				AnnotationSelector: rule.Target.AnnotationSelector,
+				LabelSelector:      rule.Target.LabelSelector,
+			}
+		}
+		diffIgnoreRules = append(diffIgnoreRules, r)
+	}
+	applyOpts.DiffIgnoreRules = diffIgnoreRules
 
 	fieldManagers := []ssa.FieldManager{
 		{

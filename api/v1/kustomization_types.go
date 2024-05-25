@@ -133,6 +133,12 @@ type KustomizationSpec struct {
 	// +required
 	SourceRef CrossNamespaceSourceReference `json:"sourceRef"`
 
+	// DriftDetection holds the configuration for detecting and handling
+	// differences between the manifest in the desired state storage and
+	// the resources currently existing in the cluster.
+	// +optional
+	DriftDetection *DriftDetection `json:"driftDetection,omitempty"`
+
 	// This flag tells the controller to suspend subsequent kustomize executions,
 	// it does not apply to already started executions. Defaults to false.
 	// +optional
@@ -167,6 +173,32 @@ type KustomizationSpec struct {
 	// Components specifies relative paths to specifications of other Components.
 	// +optional
 	Components []string `json:"components,omitempty"`
+}
+
+// IgnoreRule defines a rule to selectively disregard specific changes during
+// the drift detection process.
+type IgnoreRule struct {
+	// Paths is a list of JSON Pointer (RFC 6901) paths to be excluded from
+	// consideration in a Kubernetes object.
+	// +required
+	Paths []string `json:"paths"`
+
+	// Target is a selector for specifying Kubernetes objects to which this
+	// rule applies.
+	// If Target is not set, the Paths will be ignored for all Kubernetes
+	// objects within the manifest of the Helm release.
+	// +optional
+	Target *kustomize.Selector `json:"target,omitempty"`
+}
+
+// DriftDetection defines options for performing differential analysis. It
+// provides a way to define rules for ignoring specific changes during this
+// process.
+type DriftDetection struct {
+	// Ignore contains a list of rules for specifying which changes to ignore
+	// during diffing.
+	// +optional
+	Ignore []IgnoreRule `json:"ignore,omitempty"`
 }
 
 // CommonMetadata defines the common labels and annotations.
@@ -290,6 +322,16 @@ func (in Kustomization) GetRequeueAfter() time.Duration {
 // GetDependsOn returns the list of dependencies across-namespaces.
 func (in Kustomization) GetDependsOn() []meta.NamespacedObjectReference {
 	return in.Spec.DependsOn
+}
+
+// GetDriftDetection returns the configuration for detecting and handling
+// differences between the manifest in the Helm storage and the resources
+// currently existing in the cluster.
+func (in *Kustomization) GetDriftDetection() DriftDetection {
+	if in.Spec.DriftDetection == nil {
+		return DriftDetection{}
+	}
+	return *in.Spec.DriftDetection
 }
 
 // GetConditions returns the status conditions of the object.
